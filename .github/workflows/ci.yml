@@ -1,0 +1,33 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build --config Release
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Consume the installed package
+        shell: bash
+        run: |
+          cmake --install build --config Release --prefix "$PWD/stage"
+          mkdir consumer && cd consumer
+          printf 'cmake_minimum_required(VERSION 3.16)\nproject(c LANGUAGES C)\nfind_package(watchtower REQUIRED)\nadd_executable(c main.c)\ntarget_link_libraries(c PRIVATE Watchtower::watchtower)\n' > CMakeLists.txt
+          cp ../examples/minimal/main.c .
+          cmake -S . -B b -DCMAKE_PREFIX_PATH="$PWD/../stage"
+          cmake --build b --config Release
